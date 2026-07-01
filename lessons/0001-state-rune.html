@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lesson 1 — $state, the heart of Svelte 5</title>
+<style>
+:root { --ink: #1a1a1a; --muted: #5b6470; --bg: #fbf9f4; --card: #fff; --accent: #c84a31; --rule: #e6e1d6; --code-bg: #f4efe4; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 2.5rem 1.5rem 6rem; background: var(--bg); color: var(--ink); font: 17px/1.65 -apple-system, "Segoe UI", system-ui, sans-serif; }
+.wrap { max-width: 760px; margin: 0 auto; }
+header.lesson { border-bottom: 2px solid var(--ink); padding-bottom: 1rem; margin-bottom: 2rem; }
+header.lesson .kicker { font-size: 0.78rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+h1 { font-size: 2.1rem; margin: 0.2rem 0 0.5rem; line-height: 1.15; }
+header .sub { color: var(--muted); margin: 0; }
+h2 { margin-top: 2.5rem; font-size: 1.35rem; border-left: 4px solid var(--accent); padding-left: 0.6rem; }
+h3 { margin-top: 1.6rem; font-size: 1.05rem; }
+p { margin: 0.7rem 0; }
+code { background: var(--code-bg); padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.92em; font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+pre { background: #fff; border: 1px solid var(--rule); border-radius: 6px; padding: 1rem 1.1rem; overflow-x: auto; font: 14px/1.55 "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+pre .c { color: #6a7b8c; font-style: italic; }
+pre .k { color: #9b2226; }
+pre .s { color: #006b4f; }
+pre .n { color: #2d4f6c; }
+.callout { background: var(--card); border: 1px solid var(--rule); border-left: 4px solid #2d4f6c; border-radius: 4px; padding: 0.9rem 1.1rem; margin: 1.2rem 0; }
+.callout.warn { border-left-color: #c84a31; }
+.callout.win { border-left-color: #3a8055; }
+.callout strong { display: block; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.3rem; }
+.bridge { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin: 1rem 0; }
+.bridge > div { background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 0.7rem 0.9rem; font-size: 0.95rem; }
+.bridge h4 { margin: 0 0 0.4rem; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.cite { font-size: 0.85rem; color: var(--muted); }
+.cite a { color: var(--muted); }
+.task { background: #fff; border: 2px dashed var(--accent); border-radius: 6px; padding: 1rem 1.2rem; margin: 1.2rem 0; }
+.task h3 { margin-top: 0; color: var(--accent); }
+footer.lesson { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+@media print { body { background: #fff; } .wrap { max-width: none; } pre { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="lesson">
+  <div class="kicker">Lesson 1 · Svelte 5 fundamentals</div>
+  <h1>$state — reactive variables that feel like Python</h1>
+  <p class="sub">A 10-minute lesson. By the end you will know exactly what <code>let count = $state(0)</code> does, why it re-renders the page, and the one rule that catches every newcomer.</p>
+</header>
+
+<h2>Why this lesson exists</h2>
+<p>Your project <code>atopic_helper</code> is built on Svelte 5. Every interactive page in it &mdash; the questionnaire, the day view, the meal log &mdash; is held together by a tiny idea called a <em>rune</em>. The most important rune is <code>$state</code>. Get it, and <code>$derived</code>, <code>$effect</code>, and props are easy. Miss it, and you will spend hours debugging "why didn't this update?".</p>
+<p>Look at line 30 of <code>src/routes/+page.svelte</code> in your project. You wrote (or inherited): <code>let step = $state(1)</code>. This lesson is the explanation that line deserves.</p>
+
+<h2>The mental model</h2>
+<p>In plain JavaScript, <code>let count = 0</code> is a number. If you change it, nothing in the world notices &mdash; the variable just holds a new value.</p>
+<p>In Svelte 5, <code>let count = $state(0)</code> looks identical, but the compiler quietly rewrites it. Reading <code>count</code> now <em>subscribes</em> the surrounding component to that value, and writing to it <em>notifies</em> every subscriber to re-run. The component re-renders. You did not write any callbacks.</p>
+
+<div class="bridge">
+  <div>
+    <h4>Python feels like</h4>
+    <p>An attribute on a <code>traitlets</code>-style object that auto-fires <code>observe()</code> on change &mdash; except you don't have to register the observer. The framework does it.</p>
+  </div>
+  <div>
+    <h4>Rust feels like</h4>
+    <p>A <code>Cell&lt;T&gt;</code> wrapped in a signal: interior mutability + a publish/subscribe channel. The compiler inserts the <code>get</code>/<code>set</code> calls so you don't see them.</p>
+  </div>
+</div>
+<p class="cite">Source: <a href="https://svelte.dev/docs/svelte/$state">svelte.dev/docs/svelte/$state</a></p>
+
+<h2>The smallest working example</h2>
+<pre><span class="c">&lt;!-- Counter.svelte --&gt;</span>
+<span class="k">&lt;script&gt;</span>
+  <span class="k">let</span> count = $state(<span class="n">0</span>);
+<span class="k">&lt;/script&gt;</span>
+
+<span class="k">&lt;button</span> onclick={() =&gt; count++}<span class="k">&gt;</span>
+  Clicked {count} times
+<span class="k">&lt;/button&gt;</span></pre>
+<p>Three things are happening:</p>
+<ol>
+  <li><code>$state(0)</code> creates a reactive container holding <code>0</code>.</li>
+  <li>The <code>{count}</code> in the markup reads it &mdash; that read registers a dependency.</li>
+  <li>Clicking runs <code>count++</code>, which writes a new value &mdash; Svelte schedules a re-render of every place that read it.</li>
+</ol>
+
+<div class="callout">
+  <strong>JS basics — for the curious</strong>
+  <p><code>let</code> declares a re-assignable variable; <code>const</code> would forbid <code>count++</code>. The arrow function <code>() =&gt; count++</code> is JS shorthand for <code>function() { return count++ }</code>. You'll see arrows everywhere; treat them like Python lambdas. <code>onclick=</code> is JSX-style attribute binding new in Svelte 5 (older Svelte used <code>on:click</code>).</p>
+</div>
+
+<h2>The one rule that catches everyone</h2>
+<p>When <code>$state</code> wraps an array or object, Svelte makes it <em>deeply reactive</em> using a JavaScript Proxy. That means <strong>mutating in place works</strong>:</p>
+<pre><span class="k">let</span> motherAllergies = $state([]);
+
+<span class="c">// All of these trigger re-render:</span>
+motherAllergies.push(<span class="s">'milk'</span>);
+motherAllergies[0] = <span class="s">'egg'</span>;
+motherAllergies.length = <span class="n">0</span>;</pre>
+
+<p>So why does your <code>+page.svelte</code> do this instead?</p>
+<pre>motherAllergies = motherAllergies.filter((a) =&gt; a !== single);
+motherAllergies = [...motherAllergies, single];</pre>
+
+<p>Because immutable updates &mdash; "build a new array, assign it" &mdash; are easier to reason about, and they play better with <code>$derived</code> (next lesson). Both styles work; the spread/filter style is the codebase's convention. Pick a style, stick with it.</p>
+
+<div class="callout warn">
+  <strong>The trap</strong>
+  <p>If you destructure a reactive value out of <code>$state</code>, the copy is no longer reactive. <code>let { name } = user</code> gives you a frozen snapshot. Always read through the original: <code>user.name</code>. Same applies to passing a single field as a prop &mdash; pass the parent object or wire it explicitly.</p>
+</div>
+<p class="cite">Source: <a href="https://svelte.dev/docs/svelte/$state#Deep-state">svelte.dev/docs/svelte/$state#Deep-state</a></p>
+
+<h2>Reading your own code (no editing)</h2>
+<p>Open <code>../atopic_helper/src/routes/+page.svelte</code> in your editor for <em>reading only</em>. Find these lines near the top of the <code>&lt;script&gt;</code> block:</p>
+<pre><span class="k">let</span> step = $state(<span class="n">1</span>);
+<span class="k">let</span> babyBirthDate = $state(<span class="s">''</span>);
+<span class="k">let</span> severity = $state&lt;EczemaSeverity&gt;(<span class="s">'moderate'</span>);
+<span class="k">let</span> motherAllergies = $state&lt;<span class="n">string</span>[]&gt;([]);</pre>
+<p>Each line declares a piece of component-local reactive state. The <code>&lt;EczemaSeverity&gt;</code> bit is a TypeScript type argument &mdash; "this state holds an EczemaSeverity value." It's a label for the type-checker; at runtime it disappears. The behaviour is identical to the JS-only versions.</p>
+<p>The same patterns are mirrored verbatim in <code>playground/src/routes/lesson/state/+page.svelte</code> &mdash; that is where you'll experiment.</p>
+
+<div class="task">
+  <h3>Try it (5 minutes) — in the playground, not your real project</h3>
+  <p>The playground is a tiny SvelteKit app at <code>../playground/</code> in this workspace. Your <code>atopic_helper</code> code is read-only reference; we never poke it.</p>
+  <ol>
+    <li>In a terminal: <code>cd ~/Developer/svelte_learning/playground &amp;&amp; bun run dev</code></li>
+    <li>Open <a href="http://localhost:5180/lesson/state">http://localhost:5180/lesson/state</a> in a browser.</li>
+    <li>Click both buttons. The <em>reactive</em> counter updates; the <em>plain</em> counter's display freezes — even though the click handler does run (the log proves it).</li>
+    <li>Open <code>playground/src/routes/lesson/state/+page.svelte</code>. Find <code>let reactiveCount = $state(0)</code>. Remove the <code>$state(...)</code> wrapper so it reads <code>let reactiveCount = 0</code>. Save. The "reactive" side now behaves like the plain side — that is the rune disappearing.</li>
+    <li>Put the wrapper back. Now try the opposite: wrap <code>plainCount</code> with <code>$state</code>. Both counters now update.</li>
+    <li>Bonus: <code>log.push(...)</code> in the click handler works because <code>log</code> is a deeply-reactive <code>$state</code> array. Try replacing <code>log = []</code> in <code>reset()</code> with <code>log.length = 0</code> — same effect, both work.</li>
+  </ol>
+</div>
+
+<h2>Quick self-check</h2>
+<p>Answer these in your head, then ask me to verify in chat.</p>
+<ol>
+  <li>What is the difference between <code>let x = 0</code> and <code>let x = $state(0)</code>?</li>
+  <li>If <code>let items = $state([])</code> and you write <code>items.push('a')</code>, will the UI update? Why?</li>
+  <li>You write <code>const { value } = myReactiveObject</code> and then later <code>myReactiveObject.value = 42</code>. Does the UI showing <code>{value}</code> update? Why not?</li>
+  <li>In your <code>+page.svelte</code>, why is <code>const TOTAL_STEPS = 6</code> declared with <code>const</code> and no <code>$state(...)</code> wrapper?</li>
+</ol>
+
+<div class="callout win">
+  <strong>The win</strong>
+  <p>You can now read every <code>$state</code> line in your project and predict what it does. That is roughly half of Svelte 5's reactivity model. The other half &mdash; <code>$derived</code> (computed values) and <code>$effect</code> (side-effects) &mdash; is built on top of this same idea, and is the next lesson.</p>
+</div>
+
+<footer class="lesson">
+  <p><strong>Ask me anything.</strong> I am your teacher for this workspace &mdash; if any sentence here is unclear, ping me with "lesson 1: [the bit]" and I will reframe it.</p>
+  <p>Cheat-sheet (printable): see <a href="../reference/runes.html">reference/runes.html</a> once it exists. Next up: <code>$derived</code>.</p>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,4 @@
+playground/node_modules
+playground/.svelte-kit
+playground/build
+.DS_Store

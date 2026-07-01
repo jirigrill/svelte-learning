@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lesson 2 — $derived, computed values that recompute themselves</title>
+<style>
+:root { --ink: #1a1a1a; --muted: #5b6470; --bg: #fbf9f4; --card: #fff; --accent: #c84a31; --rule: #e6e1d6; --code-bg: #f4efe4; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 2.5rem 1.5rem 6rem; background: var(--bg); color: var(--ink); font: 17px/1.65 -apple-system, "Segoe UI", system-ui, sans-serif; }
+.wrap { max-width: 760px; margin: 0 auto; }
+header.lesson { border-bottom: 2px solid var(--ink); padding-bottom: 1rem; margin-bottom: 2rem; }
+header.lesson .kicker { font-size: 0.78rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+h1 { font-size: 2.1rem; margin: 0.2rem 0 0.5rem; line-height: 1.15; }
+header .sub { color: var(--muted); margin: 0; }
+h2 { margin-top: 2.5rem; font-size: 1.35rem; border-left: 4px solid var(--accent); padding-left: 0.6rem; }
+h3 { margin-top: 1.6rem; font-size: 1.05rem; }
+p { margin: 0.7rem 0; }
+code { background: var(--code-bg); padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.92em; font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+pre { background: #fff; border: 1px solid var(--rule); border-radius: 6px; padding: 1rem 1.1rem; overflow-x: auto; font: 14px/1.55 "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+pre .c { color: #6a7b8c; font-style: italic; }
+pre .k { color: #9b2226; }
+pre .s { color: #006b4f; }
+pre .n { color: #2d4f6c; }
+.callout { background: var(--card); border: 1px solid var(--rule); border-left: 4px solid #2d4f6c; border-radius: 4px; padding: 0.9rem 1.1rem; margin: 1.2rem 0; }
+.callout.warn { border-left-color: #c84a31; }
+.callout.win { border-left-color: #3a8055; }
+.callout strong { display: block; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.3rem; }
+.bridge { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin: 1rem 0; }
+.bridge > div { background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 0.7rem 0.9rem; font-size: 0.95rem; }
+.bridge h4 { margin: 0 0 0.4rem; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.cite { font-size: 0.85rem; color: var(--muted); }
+.cite a { color: var(--muted); }
+.task { background: #fff; border: 2px dashed var(--accent); border-radius: 6px; padding: 1rem 1.2rem; margin: 1.2rem 0; }
+.task h3 { margin-top: 0; color: var(--accent); }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { padding: 0.5rem 0.7rem; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { background: var(--code-bg); font-weight: 600; }
+footer.lesson { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="lesson">
+  <div class="kicker">Lesson 2 · Svelte 5 fundamentals</div>
+  <h1>$derived — computed values that recompute themselves</h1>
+  <p class="sub">A 12-minute lesson. By the end you will read <code>const progress = $derived(((step - 1) / (TOTAL_STEPS - 1)) * 100)</code> in your own codebase and know exactly what it does, when it runs, and what it costs.</p>
+</header>
+
+<h2>The problem $derived solves</h2>
+<p>Imagine you have a questionnaire with 6 steps. The user is on step 3. You want a progress bar showing 40%. The 40% isn't <em>state</em> &mdash; it's a calculation: <code>((step - 1) / (TOTAL_STEPS - 1)) * 100</code>. So how do you keep it in sync with <code>step</code>?</p>
+<p>Three approaches, increasingly bad to good:</p>
+
+<h3>❌ Approach 1: store it in <code>$state</code> and update by hand</h3>
+<pre><span class="k">let</span> step = $state(<span class="n">1</span>);
+<span class="k">let</span> progress = $state(<span class="n">0</span>); <span class="c">// derived from step, but stored separately</span>
+
+<span class="k">function</span> nextStep() {
+  step++;
+  progress = ((step - <span class="n">1</span>) / (TOTAL_STEPS - <span class="n">1</span>)) * <span class="n">100</span>; <span class="c">// remember to update!</span>
+}</pre>
+<p>This is the bug factory. Anywhere <code>step</code> changes, you must also remember to recompute <code>progress</code>. Forget once and your progress bar lies. This is <em>cache invalidation</em>, the famously hardest problem in computing.</p>
+
+<h3>❌ Approach 2: a regular function call in the markup</h3>
+<pre><span class="k">let</span> step = $state(<span class="n">1</span>);
+<span class="k">function</span> calcProgress() { <span class="k">return</span> ((step - <span class="n">1</span>) / (TOTAL_STEPS - <span class="n">1</span>)) * <span class="n">100</span>; }
+
+<span class="c">&lt;!-- markup --&gt;</span>
+&lt;ProgressBar value={calcProgress()} /&gt;</pre>
+<p>This <em>works</em> &mdash; Svelte sees <code>step</code> being read inside the function call and re-renders. But it has no caching: if <code>calcProgress()</code> appears in three places, it runs three times per render. For trivial maths that's fine; for sorting an array of 200 meals, it's a problem.</p>
+
+<h3>✅ Approach 3: <code>$derived</code></h3>
+<pre><span class="k">let</span> step = $state(<span class="n">1</span>);
+<span class="k">const</span> progress = $derived(((step - <span class="n">1</span>) / (TOTAL_STEPS - <span class="n">1</span>)) * <span class="n">100</span>);
+
+<span class="c">&lt;!-- markup --&gt;</span>
+&lt;ProgressBar value={progress} /&gt;</pre>
+<p>One line. Always in sync with <code>step</code>. <strong>Memoised:</strong> only recomputes when <code>step</code> actually changes. Reads like English. This is the line in your <code>+page.svelte</code>.</p>
+<p class="cite">Source: <a href="https://svelte.dev/docs/svelte/$derived">svelte.dev/docs/svelte/$derived</a></p>
+
+<h2>The mental model</h2>
+<p><code>$derived(expression)</code> creates a <em>computed signal</em>. Svelte does three things behind the scenes:</p>
+<ol>
+  <li><strong>Tracks dependencies.</strong> The first time the expression runs, Svelte notes every <code>$state</code> it reads. <code>$derived(((step - 1) / (TOTAL_STEPS - 1)) * 100)</code> depends on <code>step</code>.</li>
+  <li><strong>Caches the result.</strong> Reading <code>progress</code> from anywhere returns the cached value &mdash; no recomputation.</li>
+  <li><strong>Invalidates lazily.</strong> When <code>step</code> changes, the cache is marked stale. Next time anyone reads <code>progress</code>, the expression re-runs and the new value is cached.</li>
+</ol>
+
+<div class="bridge">
+  <div>
+    <h4>Python feels like</h4>
+    <p><code>@cached_property</code> on a class &mdash; the value is computed lazily and cached, but invalidated when its inputs change. Except in Svelte the invalidation is automatic, not manual.</p>
+  </div>
+  <div>
+    <h4>Rust feels like</h4>
+    <p>Like a memoised closure that captures references to other signals. The compiler builds the dependency graph for you; you write the formula.</p>
+  </div>
+</div>
+
+<h2>Three rules to internalise</h2>
+<table>
+  <tr><th>Rule</th><th>Why</th></tr>
+  <tr>
+    <td>Use <code>const</code>, never <code>let</code>.</td>
+    <td><code>$derived</code> values are read-only by design. You can't reassign them &mdash; that's the point. Trying to is a compile error. Same with <code>$state</code>: <code>let</code> is required there because it <em>is</em> mutable. The keyword tells you (and the compiler) the intent.</td>
+  </tr>
+  <tr>
+    <td>Keep the expression <em>pure</em>. No side effects.</td>
+    <td>The expression may run zero, one, or many times depending on whether anyone reads it. Triggering an API call or DOM mutation here is unpredictable. For side effects you want <code>$effect</code>, the next lesson.</td>
+  </tr>
+  <tr>
+    <td>For multi-line logic, use <code>$derived.by(() =&gt; { ... })</code>.</td>
+    <td>The single-expression form (<code>$derived(x + y)</code>) is convenient for one-liners. For complex computation with intermediate variables, <code>$derived.by(() =&gt; { const a = …; const b = …; return a + b; })</code> gives you a function body. Same semantics; just syntax.</td>
+  </tr>
+</table>
+<p class="cite">Source: <a href="https://svelte.dev/docs/svelte/$derived#$derived.by">svelte.dev/docs/svelte/$derived#$derived.by</a></p>
+
+<h2>Reading your own code</h2>
+<p>Open <code>../atopic_helper/src/routes/+page.svelte</code> for reference (no editing). Find these:</p>
+<pre><span class="k">const</span> progress = $derived(((step - <span class="n">1</span>) / (TOTAL_STEPS - <span class="n">1</span>)) * <span class="n">100</span>);
+
+<span class="k">const</span> permanentSlugs = $derived(
+  [...<span class="k">new</span> Set([
+    ...motherAllergies.map(s =&gt; s.split(<span class="s">':'</span>)[<span class="n">0</span>]),
+    ...babyAllergies.map(s =&gt; s.split(<span class="s">':'</span>)[<span class="n">0</span>])
+  ])]
+);</pre>
+<p>Two derived values, two patterns:</p>
+<ul>
+  <li><strong><code>progress</code></strong> &mdash; depends on <code>step</code>. Re-runs whenever the user advances the questionnaire.</li>
+  <li><strong><code>permanentSlugs</code></strong> &mdash; depends on <code>motherAllergies</code> AND <code>babyAllergies</code> (both <code>$state</code> arrays). Re-runs when either changes. Notice the dependency tracking is automatic &mdash; you didn't have to declare "depends on these two" anywhere; Svelte saw the reads and wired it up.</li>
+</ul>
+
+<p>Now look at <code>../atopic_helper/src/lib/components/AllergenChip.svelte</code> line 25:</p>
+<pre><span class="k">const</span> display = $derived(resolveDisplay(slug));</pre>
+<p>This pattern is the workhorse: a derived value that calls a pure function with a reactive input. Whenever <code>slug</code> changes, <code>resolveDisplay</code> re-runs and <code>display</code> updates. The function itself doesn't need to know about reactivity.</p>
+
+<div class="callout">
+  <strong>Multi-input dependencies — automatic</strong>
+  <p>You never write <code>depends_on=[step]</code> or anything like that. Svelte sees which signals are read while the expression evaluates and wires them up automatically. Add a new dependency to the formula? Tracked. Remove one? Untracked. This is one of the things runes get gloriously right.</p>
+</div>
+
+<h2>Bonus: $derived cures the destructuring trap</h2>
+<p>Remember Lesson 1's trap?</p>
+<pre><span class="k">let</span> user = $state({ name: <span class="s">'Jiri'</span>, clicks: <span class="n">0</span> });
+<span class="k">const</span> { name } = user; <span class="c">// frozen snapshot — UI doesn't update on user.name changes</span></pre>
+<p><code>$derived</code> gives us a live read instead:</p>
+<pre><span class="k">let</span> user = $state({ name: <span class="s">'Jiri'</span>, clicks: <span class="n">0</span> });
+<span class="k">const</span> name = $derived(user.name); <span class="c">// always current — recomputes when user.name changes</span></pre>
+<p>The expression <code>user.name</code> goes through the Proxy on every recompute &mdash; so it's always live. The "fence" you sensed in Lesson 1 (single source of truth) is now enforced by the framework, not by your discipline.</p>
+<p>That said: if you only use <code>name</code> once in markup, just write <code>{user.name}</code> directly. <code>$derived</code> shines when (a) the expression is non-trivial, (b) it's used in multiple places, or (c) you want a clear local name for what the expression means.</p>
+
+<div class="task">
+  <h3>Try it (8 minutes) — in the playground</h3>
+  <ol>
+    <li>Make sure the dev server is still running (<code>cd ~/Developer/svelte_learning/playground &amp;&amp; bun run dev</code>).</li>
+    <li>Open <a href="http://localhost:5180/lesson/derived">http://localhost:5180/lesson/derived</a>.</li>
+    <li>You'll see a step-by-step questionnaire mock with a progress bar. The progress is computed via <code>$derived</code> from <code>step</code> and <code>TOTAL_STEPS</code>. Click "next" / "back" — watch it stay in sync.</li>
+    <li>In <code>playground/src/routes/lesson/derived/+page.svelte</code>, find the <code>$derived</code> for <code>progress</code>. Replace it with a plain <code>let progress = ((step - 1) / (TOTAL_STEPS - 1)) * 100</code>. Save. Click "next". <strong>The bar freezes</strong> &mdash; <code>progress</code> was computed once at component init, not re-derived.</li>
+    <li>Restore the <code>$derived(...)</code>. Now find the <code>$derived</code> using <code>$derived.by(() =&gt; { ... })</code> form &mdash; it computes a friendly status label. Read the body. Note that intermediate variables (<code>const ratio = ...</code>) are local to the function and never reactive themselves.</li>
+    <li>Bonus challenge: add a new <code>$derived</code> called <code>stepsRemaining</code> (= <code>TOTAL_STEPS - step</code>) and render it in the page somewhere. Confirm it updates as you click "next".</li>
+  </ol>
+</div>
+
+<h2>Quick self-check</h2>
+<ol>
+  <li>What is the difference in intent between <code>let count = $state(0)</code> and <code>const total = $derived(count * 2)</code>?</li>
+  <li>If <code>count</code> is read by 5 different <code>$derived</code> expressions, and <code>count</code> changes once, how many times does each derived expression recompute? (Hint: also think about whether anyone reads them.)</li>
+  <li>Why is it a bad idea to write <code>const x = $derived((() =&gt; { console.log('hi'); return count; })())</code>?</li>
+  <li>In <code>atopic_helper</code>, look at <code>const phase = $derived(ctx.status === 'ready' ? getPhaseForDate(ctx.schedule, selectedDate) : null)</code>. Which two reactive sources does it depend on? What value does <code>phase</code> hold while <code>ctx.status</code> is, say, <code>'loading'</code>?</li>
+</ol>
+
+<div class="callout win">
+  <strong>The win</strong>
+  <p>You can now read every <code>$derived</code> line in your project and predict (a) what its dependencies are, (b) when it recomputes, and (c) whether it's pulling its weight. Combined with Lesson 1, you've covered the inputs (<code>$state</code>) and the pure outputs (<code>$derived</code>) of the reactive graph. The remaining piece &mdash; side effects (<code>$effect</code>) &mdash; is Lesson 3.</p>
+</div>
+
+<footer class="lesson">
+  <p><strong>Ask me anything.</strong> If a sentence here didn't land, just say "lesson 2: [the bit]" and I'll reframe it.</p>
+  <p>Next up: <code>$effect</code> &mdash; how to tell Svelte "run this side-effect (write to DB, fetch, set up a timer) whenever these signals change."</p>
+</footer>
+
+</div>
+</body>
+</html>
